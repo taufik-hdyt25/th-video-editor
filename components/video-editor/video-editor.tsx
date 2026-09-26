@@ -18,6 +18,7 @@ const DEFAULT_PROJECT = (duration: number): Omit<VideoProject, "sourceFile" | "s
   transform: { scale: 1.3, x: 0, y: 0 },
   aspectRatio: { width: 16, height: 9, preset: "original" },
   textOverlays: [],
+  speed: 1,
 });
 
 interface VideoEditorProps {
@@ -112,6 +113,7 @@ export function VideoEditor({ file, sourceUrl, onNewProject }: VideoEditorProps)
             width: project.aspectRatio.width,
             height: project.aspectRatio.height,
           },
+          speed: project.speed,
           textOverlays: project.textOverlays,
           metadata: project.metadata,
         })
@@ -224,6 +226,7 @@ export function VideoEditor({ file, sourceUrl, onNewProject }: VideoEditorProps)
               onTimeUpdate={setCurrentTime}
               onLoadedMetadata={handleLoadedMetadata}
               onPlayStateChange={setIsPlaying}
+              onProjectChange={updateProject}
             />
           </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ActiveTool } from "@/types/video";
-import { Crop, ZoomIn, Scissors, Type, Info } from "lucide-react";
+import { Crop, ZoomIn, Scissors, Type, Info, Gauge } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -18,6 +18,7 @@ const TOOLS: Array<{ id: ActiveTool; icon: React.ReactNode; label: string }> = [
   { id: "crop", icon: <Crop className="w-5 h-5" />, label: "Crop" },
   { id: "zoom", icon: <ZoomIn className="w-5 h-5" />, label: "Zoom & Pan" },
   { id: "text", icon: <Type className="w-5 h-5" />, label: "Text Overlay" },
+  { id: "speed", icon: <Gauge className="w-5 h-5" />, label: "Speed" },
   { id: "metadata", icon: <Info className="w-5 h-5" />, label: "Metadata" },
 ];
 

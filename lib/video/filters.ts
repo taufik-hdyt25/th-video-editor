@@ -16,6 +16,7 @@ export interface FilterOptions {
   aspectRatio: { width: number; height: number };
   textOverlays: TextOverlay[];
   metadata: VideoMetadata;
+  speed: number;
 }
 
 /**
@@ -100,11 +101,17 @@ export function buildVideoFilter(opts: FilterOptions): string {
       .replace(/\\/g, "\\\\")
       .replace(/'/g, "\\'")
       .replace(/:/g, "\\:");
-    let drawtext = `drawtext=text='${escapedText}':fontsize=${overlay.fontSize}:fontcolor=${overlay.color}@${alpha}:x=${xPx}:y=${yPx}:font=Sans${weight}`;
+    const fontName = (overlay.fontFamily || "Arial").replace(/ /g, "\\ ");
+    let drawtext = `drawtext=text='${escapedText}':fontsize=${overlay.fontSize}:fontcolor=${overlay.color}@${alpha}:x=${xPx}:y=${yPx}:font=${fontName}${weight}`;
     if (overlay.startTime !== undefined && overlay.endTime !== undefined) {
       drawtext += `:enable='between(t,${overlay.startTime},${overlay.endTime})'`;
     }
     filters.push(drawtext);
+  }
+
+  // 5. Speed (Video)
+  if (opts.speed && opts.speed !== 1) {
+    filters.push(`setpts=${1 / opts.speed}*PTS`);
   }
 
   return filters.join(",");

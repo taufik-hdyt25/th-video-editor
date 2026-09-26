@@ -8,7 +8,7 @@ export type AspectRatioPreset =
   | "1:1"
   | "custom";
 
-export type ActiveTool = "crop" | "zoom" | "trim" | "text" | "metadata";
+export type ActiveTool = "crop" | "zoom" | "trim" | "text" | "metadata" | "speed";
 
 export interface CropSettings {
   /** Normalized 0-1 */
@@ -42,6 +42,7 @@ export interface TextOverlay {
   id: string;
   text: string;
   fontSize: number;
+  fontFamily: string;
   fontWeight: FontWeight;
   color: string;
   x: number;       // 0-100 percentage
@@ -70,7 +71,9 @@ export interface VideoProject {
   transform: TransformSettings;
   aspectRatio: AspectRatioSettings;
   textOverlays: TextOverlay[];
+  speed: number;
 }
+
 
 export type ExportStatus = "idle" | "processing" | "done" | "error";
 
@@ -87,5 +90,6 @@ export interface ExportRequest {
   transform: TransformSettings;
   aspectRatio: { width: number; height: number };
   textOverlays: TextOverlay[];
+  speed: number;
   metadata?: VideoMetadata;
 }

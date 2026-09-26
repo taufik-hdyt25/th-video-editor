@@ -10,6 +10,13 @@ import type {
 } from "@/types/video";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CropEditor } from "./crop-editor";
 import { MetadataEditor } from "./metadata-editor";
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
@@ -224,6 +231,7 @@ function TextPanel({
     textOverlays[0]?.id ?? null
   );
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [language, setLanguage] = useState("id");
 
   const addOverlay = () => {
     const id = `text-${Date.now()}`;
@@ -231,6 +239,7 @@ function TextPanel({
       id,
       text: "Hello World",
       fontSize: 32,
+      fontFamily: "Arial",
       fontWeight: "bold",
       color: "#ffffff",
       x: 50,
@@ -258,6 +267,7 @@ function TextPanel({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("language", language);
       
       const res = await fetch("/api/video/transcribe", {
         method: "POST",
@@ -268,19 +278,39 @@ function TextPanel({
       
       const data = await res.json();
       if (data.chunks) {
-        const newOverlays: TextOverlay[] = data.chunks.map((chunk: any, i: number) => ({
-          id: `auto-${Date.now()}-${i}`,
-          text: chunk.text.trim(),
-          fontSize: 24,
-          fontWeight: "normal",
-          color: "#ffffff",
-          x: 50,
-          y: 85,
-          opacity: 100,
-          alignment: "center",
-          startTime: chunk.timestamp[0],
-          endTime: chunk.timestamp[1] || chunk.timestamp[0] + 2,
-        }));
+        const newOverlays: TextOverlay[] = [];
+        for (let i = 0; i < data.chunks.length; i += 2) {
+          const chunk1 = data.chunks[i];
+          const chunk2 = data.chunks[i + 1];
+
+          const words = [chunk1.text.trim()];
+          if (chunk2) words.push(chunk2.text.trim());
+
+          const start = chunk1.timestamp[0];
+          let end = chunk1.timestamp[1] || start + 1;
+          if (chunk2) {
+            end = chunk2.timestamp[1] || chunk2.timestamp[0] + 1;
+          }
+          
+          const pairText = words
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(" ");
+            
+          newOverlays.push({
+            id: `auto-${Date.now()}-${i}`,
+            text: pairText,
+            fontSize: 24,
+            fontFamily: "Arial",
+            fontWeight: "bold",
+            color: "#fbbf24", // Yellow
+            x: 50,
+            y: 75,
+            opacity: 100,
+            alignment: "center",
+            startTime: start,
+            endTime: end,
+          });
+        }
         onChange([...textOverlays, ...newOverlays]);
       }
     } catch (error) {
@@ -321,21 +351,39 @@ function TextPanel({
         ))}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2">
         <button
           onClick={addOverlay}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs text-violet-400 border border-violet-500/30 hover:bg-violet-500/10 transition-all"
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs text-violet-400 border border-violet-500/30 hover:bg-violet-500/10 transition-all"
         >
           <Plus className="w-3 h-3" />
           Add Text Layer
         </button>
-        <button
-          onClick={autoSubtitle}
-          disabled={isTranscribing || !file}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs text-blue-400 border border-blue-500/30 hover:bg-blue-500/10 transition-all disabled:opacity-50"
-        >
-          {isTranscribing ? "Transcribing..." : "Auto Subtitle"}
-        </button>
+
+        {file && (
+          <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg flex flex-col gap-2">
+            <Label className="text-xs text-zinc-400">AI Auto Subtitle</Label>
+            <div className="flex gap-2">
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="flex-1 h-8 text-xs bg-zinc-950 border-zinc-800">
+                  <SelectValue placeholder="Language" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">
+                  <SelectItem value="id">Indonesian</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <button
+                onClick={autoSubtitle}
+                disabled={isTranscribing || !file}
+                className="flex-1 flex items-center justify-center gap-2 px-2 py-0 rounded-lg text-xs text-blue-400 border border-blue-500/30 hover:bg-blue-500/10 transition-all disabled:opacity-50"
+              >
+                {isTranscribing ? "Wait..." : "Auto Subtitle"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Editor for selected layer */}
@@ -362,6 +410,28 @@ function TextPanel({
               step={1}
               onChange={(v) => updateOverlay(active.id, { fontSize: v })}
             />
+
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-zinc-500">Font</Label>
+              <Select
+                value={active.fontFamily || "Arial"}
+                onValueChange={(v) => updateOverlay(active.id, { fontFamily: v })}
+              >
+                <SelectTrigger className="h-8 text-xs bg-zinc-900 border-zinc-800">
+                  <SelectValue placeholder="Select font" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">
+                  <SelectItem value="Arial" className="font-[Arial]">Arial</SelectItem>
+                  <SelectItem value="Impact" className="font-[Impact]">Impact</SelectItem>
+                  <SelectItem value="Times New Roman" className="font-serif">Times New Roman</SelectItem>
+                  <SelectItem value="Courier New" className="font-mono">Courier New</SelectItem>
+                  <SelectItem value="Verdana" className="font-[Verdana]">Verdana</SelectItem>
+                  <SelectItem value="Trebuchet MS" className="font-[Trebuchet MS]">Trebuchet</SelectItem>
+                  <SelectItem value="Comic Sans MS" className="font-[Comic Sans MS]">Comic Sans</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex flex-col gap-1">
               <Label className="text-xs text-zinc-500">Weight</Label>
               <div className="flex gap-1">
@@ -455,8 +525,71 @@ function TextPanel({
               ))}
             </div>
           </div>
+          <div className="pt-2 border-t border-white/5">
+            <button
+              onClick={() => {
+                const next = textOverlays.map(o => ({
+                  ...o,
+                  fontSize: active.fontSize,
+                  fontFamily: active.fontFamily || "Arial",
+                  fontWeight: active.fontWeight,
+                  color: active.color,
+                  alignment: active.alignment,
+                  y: active.y
+                }));
+                onChange(next);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs text-orange-400 border border-orange-500/30 hover:bg-orange-500/10 transition-all"
+            >
+              Apply Style to All Layers
+            </button>
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ────────── Speed Panel ──────────
+function SpeedPanel({
+  speed,
+  onChange,
+}: {
+  speed: number;
+  onChange: (speed: number) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Playback Speed" />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-xs text-zinc-400">
+          <Label>Speed</Label>
+          <span className="font-mono text-violet-400">{speed.toFixed(2)}x</span>
+        </div>
+        <Slider
+          value={[speed]}
+          min={0.25}
+          max={4}
+          step={0.05}
+          onValueChange={(v) => onChange(Array.isArray(v) ? v[0] : (v as unknown as number))}
+          className="py-1"
+        />
+        <div className="flex gap-2">
+          {[0.5, 1, 1.5, 2].map((v) => (
+            <button
+              key={v}
+              onClick={() => onChange(v)}
+              className={`flex-1 py-1 text-[10px] rounded border transition-colors ${
+                speed === v
+                  ? "bg-violet-600/20 border-violet-500/50 text-violet-300"
+                  : "border-zinc-700/50 text-zinc-500 hover:bg-zinc-800/50"
+              }`}
+            >
+              {v}x
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -512,6 +645,13 @@ export function PropertiesPanel({
             textOverlays={project.textOverlays}
             onChange={(textOverlays) => onProjectChange({ textOverlays })}
             file={project.sourceFile || null}
+          />
+        )}
+
+        {activeTool === "speed" && (
+          <SpeedPanel
+            speed={project.speed || 1}
+            onChange={(speed) => onProjectChange({ speed })}
           />
         )}
 

@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const language = (formData.get("language") as string) || "id";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -73,13 +74,18 @@ export async function POST(req: NextRequest) {
     // Make it a proper Float32Array
     const float32Data = new Float32Array(audioData as unknown as Float64Array);
 
-    // Run Whisper pipeline
-    const transcriber = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny");
+    // Run Whisper pipeline (quantized: true uses smaller 8-bit model for speed)
+    const transcriber = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny", {
+      quantized: true,
+    });
     
     // Perform transcription with timestamps
     const result = await transcriber(float32Data, {
-      return_timestamps: true,
+      return_timestamps: "word",
       chunk_length_s: 30,
+      stride_length_s: 5,
+      language: language, // skip auto-detect for faster processing
+      task: "transcribe",
     });
 
     const chunks = Array.isArray(result.chunks) ? result.chunks : [];

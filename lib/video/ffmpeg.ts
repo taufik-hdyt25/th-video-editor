@@ -20,6 +20,9 @@ export { ffmpeg };
  * Probe video metadata.
  */
 export async function probeVideo(filePath: string): Promise<VideoMetadata> {
+  const probePath = require("ffprobe-static").path;
+  ffmpeg.setFfprobePath(probePath);
+  
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err, data) => {
       if (err) return reject(err);
@@ -47,6 +50,9 @@ export async function exportVideo(
   metadata: VideoMetadata,
   onProgress?: (pct: number) => void,
 ): Promise<string> {
+  const binPath = require("ffmpeg-static");
+  ffmpeg.setFfmpegPath(binPath);
+  
   const tmpDir = os.tmpdir();
   const outputPath = path.join(tmpDir, `ve_out_${Date.now()}.mp4`);
 
@@ -57,6 +63,7 @@ export async function exportVideo(
     aspectRatio: request.aspectRatio,
     textOverlays: request.textOverlays,
     metadata,
+    speed: request.speed || 1,
   });
 
   return new Promise((resolve, reject) => {
@@ -70,6 +77,25 @@ export async function exportVideo(
       cmd = cmd.videoFilter(videoFilter);
     }
 
+    if (request.speed && request.speed !== 1) {
+      let currentSpeed = request.speed;
+      const atempoFilters: string[] = [];
+      while (currentSpeed < 0.5) {
+        atempoFilters.push("atempo=0.5");
+        currentSpeed /= 0.5;
+      }
+      while (currentSpeed > 2.0) {
+        atempoFilters.push("atempo=2.0");
+        currentSpeed /= 2.0;
+      }
+      if (currentSpeed !== 1.0) {
+        atempoFilters.push(`atempo=${currentSpeed}`);
+      }
+      if (atempoFilters.length > 0) {
+        cmd = cmd.audioFilter(atempoFilters.join(","));
+      }
+    }
+
     let videoCodec = "libx264";
     if (metadata.codec === "hevc") videoCodec = "libx265";
     else if (metadata.codec === "vp9") videoCodec = "libvpx-vp9";
@@ -81,8 +107,8 @@ export async function exportVideo(
       .outputOptions([
         "-pix_fmt yuv420p",
         "-movflags +faststart",
-        "-preset fast",
-        "-crf 23",
+        "-preset ultrafast",
+        "-crf 28",
         "-map_metadata -1", // Strip all original metadata to ensure privacy/hide AI traces
       ])
       .output(outputPath)

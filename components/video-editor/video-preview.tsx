@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useState } from "react";
 import type { VideoProject } from "@/types/video";
 
 interface VideoPreviewProps {
@@ -8,6 +8,7 @@ interface VideoPreviewProps {
   onTimeUpdate?: (currentTime: number) => void;
   onLoadedMetadata?: (duration: number, width: number, height: number) => void;
   onPlayStateChange?: (playing: boolean) => void;
+  onProjectChange?: (updates: Partial<VideoProject>) => void;
 }
 
 export interface VideoPreviewHandle {
@@ -18,14 +19,25 @@ export interface VideoPreviewHandle {
 }
 
 export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
-  function VideoPreview({ project, onTimeUpdate, onLoadedMetadata, onPlayStateChange }, ref) {
+  function VideoPreview({ project, onTimeUpdate, onLoadedMetadata, onPlayStateChange, onProjectChange }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [draggingTextId, setDraggingTextId] = useState<string | null>(null);
+
+    useEffect(() => {
+      if (videoRef.current && project.speed) {
+        videoRef.current.playbackRate = project.speed;
+      }
+    }, [project.speed]);
 
     useImperativeHandle(ref, () => ({
       play: () => videoRef.current?.play(),
       pause: () => videoRef.current?.pause(),
       seek: (time: number) => {
-        if (videoRef.current) videoRef.current.currentTime = time;
+        if (videoRef.current) {
+          videoRef.current.currentTime = time;
+          setCurrentTime(time);
+        }
       },
       getElement: () => videoRef.current,
     }));
@@ -52,6 +64,7 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     const handleTimeUpdate = useCallback(() => {
       const el = videoRef.current;
       if (!el) return;
+      setCurrentTime(el.currentTime);
       onTimeUpdate?.(el.currentTime);
       // Loop within trim range
       if (el.currentTime >= project.trim.end) {
@@ -122,27 +135,65 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
           </div>
 
           {/* Text overlays preview */}
-          {project.textOverlays.map((overlay) => (
-            <div
-              key={overlay.id}
-              className="absolute pointer-events-none select-none"
-              style={{
-                left: `${overlay.x}%`,
-                top: `${overlay.y}%`,
-                transform: "translate(-50%, -50%)",
-                fontSize: `${overlay.fontSize}px`,
-                fontWeight: overlay.fontWeight,
-                color: overlay.color,
-                opacity: overlay.opacity / 100,
-                textAlign: overlay.alignment,
-                textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              {overlay.text}
-            </div>
-          ))}
+          {project.textOverlays.map((overlay) => {
+            if (
+              overlay.startTime !== undefined &&
+              overlay.endTime !== undefined &&
+              (currentTime < overlay.startTime || currentTime > overlay.endTime)
+            ) {
+              return null;
+            }
+            return (
+              <div
+                key={overlay.id}
+                className="absolute select-none cursor-move"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  setDraggingTextId(overlay.id);
+                }}
+                onPointerMove={(e) => {
+                  if (draggingTextId !== overlay.id || !onProjectChange) return;
+                  const container = e.currentTarget.parentElement;
+                  if (!container) return;
+                  const rect = container.getBoundingClientRect();
+                  
+                  // movementX/Y is sometimes unreliable, using clientX/Y delta would be safer but movementX is usually okay on desktop
+                  const dx = (e.movementX / rect.width) * 100;
+                  const dy = (e.movementY / rect.height) * 100;
+                  
+                  const newOverlays = project.textOverlays.map(o => {
+                    if (o.id === overlay.id) {
+                      return { ...o, x: o.x + dx, y: o.y + dy };
+                    }
+                    return o;
+                  });
+                  onProjectChange({ textOverlays: newOverlays });
+                }}
+                onPointerUp={(e) => {
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                  setDraggingTextId(null);
+                }}
+                style={{
+                  left: `${overlay.x}%`,
+                  top: `${overlay.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  fontFamily: overlay.fontFamily || "Arial",
+                  fontSize: `${overlay.fontSize}px`,
+                  fontWeight: overlay.fontWeight,
+                  color: overlay.color,
+                  opacity: overlay.opacity / 100,
+                  textAlign: overlay.alignment,
+                  textShadow: "0 2px 6px rgba(0,0,0,0.8), 0 -1px 3px rgba(0,0,0,0.8), 1px 0 3px rgba(0,0,0,0.8), -1px 0 3px rgba(0,0,0,0.8)",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  maxWidth: "90%",
+                  zIndex: 20,
+                }}
+              >
+                {overlay.text}
+              </div>
+            );
+          })}
 
           {/* Crop overlay guides */}
           {(crop.x > 0 || crop.y > 0 || crop.width < 1 || crop.height < 1) && (
